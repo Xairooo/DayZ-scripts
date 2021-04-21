@@ -87,10 +87,20 @@ class ComponentEnergyManager : Component
 			m_DebugPlugs = false;
 		}
 	}
+	
+	void ~ComponentEnergyManager()
+	{
+		if (m_DebugPlugArrow)
+		{
+			m_DebugPlugArrow.Destroy();
+			m_DebugPlugArrow = NULL; 
+		}
+	}
 
 	// Initialization. Energy Manager is ready.
 	override void Event_OnInit()
 	{
+		m_ThisEntityAI.m_EM = this;
 		GetGame().GameScript.CallFunction(m_ThisEntityAI, "OnInitEnergy", NULL, 0);
 	}
 	
@@ -115,6 +125,10 @@ class ComponentEnergyManager : Component
 		{
 			vector from = GetEnergySource().GetPosition() + "0 0.1 0";
 			vector to = m_ThisEntityAI.GetPosition() + "0 0.1 0";
+			
+			//No need to draw an arrow in this situation as it would not be visible
+			if ( vector.DistanceSq(from, to) == 0 )
+				return;
 			
 			if ( m_ThisEntityAI.GetType() == "BarbedWire" ) // Special case for debugging of electric fences. Temporal code until offsets in fences are fixed.
 			{
@@ -663,11 +677,6 @@ class ComponentEnergyManager : Component
 		m_UpdateInterval = value;
 	}
 	
-	
-	
-	
-	
-	
 	// Returns true if this device was plugged into something at the end of previous session
 	bool GetRestorePlugState()
 	{
@@ -1129,9 +1138,6 @@ class ComponentEnergyManager : Component
 		return m_UpdateInterval;
 	}
 	
-
-
-	
 	//! Returns wetness exposure value defined in config
 	float GetWetnessExposure()
 	{
@@ -1162,7 +1168,6 @@ class ComponentEnergyManager : Component
 			SetEnergy(clamped_energy);
 			StartUpdates();
 			
-			
 			if (energy_was_added)
 				OnEnergyAdded();
 			else
@@ -1177,14 +1182,20 @@ class ComponentEnergyManager : Component
 	//! Energy manager: Returns the maximum amount of energy this device can curently store. If parameter 'reduceMaxEnergyByDamageCoef' is used in the config of this device then the returned value will be reduced by damage.
 	float GetEnergyMax()
 	{
-		float max_health = m_ThisEntityAI.GetMaxHealth("","");
+		float max_health = 0;
+		
+		if ( m_ThisEntityAI.HasDamageSystem() )
+			max_health = m_ThisEntityAI.GetMaxHealth("","");
+		//else if ( m_ReduceMaxEnergyByDamageCoef != 0 )
+		//	Error("[ERROR] ReduceMaxEnergyByDamageCoef is setup but " + m_ThisEntityAI.GetType() + " does not have a Damage System");
+		
+		if ( max_health == 0 || m_ReduceMaxEnergyByDamageCoef == 0 )
+			return GetEnergyMaxPristine();
+		
 		float health = 100;
 		
 		if (GetGame().IsServer()) // TO DO: Remove this IF when method GetHealth can be called on client!
 			health = m_ThisEntityAI.GetHealth("","");
-		
-		if (max_health == 0  ||  m_ReduceMaxEnergyByDamageCoef == 0)
-			return GetEnergyMaxPristine();
 		
 		float damage_coef = 1 - (health / max_health);
 		
@@ -1203,8 +1214,6 @@ class ComponentEnergyManager : Component
 		return m_CordLength;
 	}
 
-
-
 	//! Energy manager: Returns the energy source this device is plugged into
 	EntityAI GetEnergySource()
 	{
@@ -1220,7 +1229,7 @@ class ComponentEnergyManager : Component
 	//! Energy manager: Returns the device to which the given plug selection belongs to
 	EntityAI GetPlugOwner(string plug_selection_name)
 	{
-		if( m_DeviceByPlugSelection.Contains(plug_selection_name) )
+		if ( m_DeviceByPlugSelection.Contains(plug_selection_name) )
 		{
 			return m_DeviceByPlugSelection.Get(plug_selection_name);
 		}
@@ -1239,24 +1248,17 @@ class ComponentEnergyManager : Component
 		return NULL;
 	}
 	
-
-
-
 	//! Energy manager: Returns path to the cord texture file.
 	string GetCordTextureFile()
 	{
 		return m_CordTextureFile;
 	}
 
-
-
 	//! Energy manager: Returns an array of devices which are plugged into this one
 	array<EntityAI> GetPluggedDevices()
 	{
 		return m_PluggedDevices;
 	}
-
-
 
 	//! Energy manager: Returns an array of devices which are plugged into this one and are turned on
 	array<EntityAI> GetPoweredDevices()
@@ -1274,8 +1276,6 @@ class ComponentEnergyManager : Component
 		
 		return return_array;
 	}
-	
-	
 	
 	
 	/*===================================
@@ -1479,7 +1479,7 @@ class ComponentEnergyManager : Component
 	}
 	
 	// Updates socket selections (plugged/unplugged) of the given ID and sets color texture of the plug.
-	protected void UpdateSocketSelections (int socket_id, EntityAI device_to_plug)
+	protected void UpdateSocketSelections(int socket_id, EntityAI device_to_plug)
 	{
 		SetDeviceBySocketID(socket_id, device_to_plug);
 		
@@ -1557,7 +1557,7 @@ class ComponentEnergyManager : Component
 	// Sets the device to which the given plug selection belongs to
 	protected void SetPlugOwner(string selection_name, EntityAI device)
 	{
-		if( m_DeviceByPlugSelection.Contains(selection_name) )
+		if ( m_DeviceByPlugSelection.Contains(selection_name) )
 		{
 			m_DeviceByPlugSelection.Set(selection_name, device);
 		}
@@ -1728,7 +1728,7 @@ class ComponentEnergyManager : Component
 					ClearLastUpdateTime();
 				}
 			}
-			else if(this  &&  m_ThisEntityAI)
+			else if (this  &&  m_ThisEntityAI)
 			{
 				SetPowered( false );
 				StopUpdates();

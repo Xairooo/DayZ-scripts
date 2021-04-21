@@ -709,4 +709,10 @@ class GameConstants
 	
 	const int RESPAWN_MODE_CUSTOM = 0;
 	const int RESPAWN_MODE_RANDOM = 1;
+	
+	//----------------------------------------------------------
+	//							AI
+	//----------------------------------------------------------
+	
+	const float AI_ATTACKSPEED = 2;
 }
